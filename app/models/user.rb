@@ -19,6 +19,8 @@ class User < ApplicationRecord
   has_many :supervisor_volunteers, foreign_key: "supervisor_id"
   has_many :volunteers, -> { includes(:supervisor_volunteer).order(:display_name) },
     through: :supervisor_volunteers
+  has_many :active_volunteers, -> { includes(:supervisor_volunteer).order(:display_name) },
+    through: :supervisor_volunteers, is_active: true
 
   has_one :supervisor_volunteer, -> {
     where(is_active: true)
