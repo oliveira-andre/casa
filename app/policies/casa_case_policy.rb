@@ -17,7 +17,7 @@ class CasaCasePolicy
     def resolve
       case @user
       when CasaAdmin, Supervisor
-        scope
+        scope.by_organization(@user.casa_org)
       when Volunteer
         scope.actively_assigned_to(user)
       else
@@ -40,6 +40,12 @@ class CasaCasePolicy
 
   def update_birth_month_year_youth?
     user.casa_admin?
+  end
+
+  def update_emancipation_option?
+    is_in_same_org? && (
+      is_supervisor_or_casa_admin? || is_volunteer_actively_assigned_to_case?
+    )
   end
 
   def assign_volunteers?

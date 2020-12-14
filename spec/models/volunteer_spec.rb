@@ -1,6 +1,33 @@
 require "rails_helper"
 
 RSpec.describe Volunteer, type: :model do
+  describe ".email_court_report_reminder" do
+    let!(:casa_org) { create(:casa_org) }
+
+    # Should send email for this case
+    let!(:casa_case1) { create(:casa_case, casa_org: casa_org, court_report_due_date: Date.current + 7.days) }
+
+    # Should NOT send emails for these two cases
+    let!(:casa_case2) { create(:casa_case, casa_org: casa_org, court_report_due_date: Date.current + 8.days) }
+    let!(:casa_case3) { create(:casa_case, casa_org: casa_org, court_report_due_date: Date.current + 7.days, court_report_submitted_at: Time.current, court_report_status: :submitted) }
+
+    let(:case_assignment1) { build(:case_assignment, casa_org: casa_org, casa_case: casa_case1) }
+    let(:case_assignment2) { build(:case_assignment, casa_org: casa_org, casa_case: casa_case2) }
+    let(:case_assignment3) { build(:case_assignment, casa_org: casa_org, casa_case: casa_case3) }
+    let!(:v1) { create(:volunteer, casa_org: casa_org, case_assignments: [case_assignment1, case_assignment2, case_assignment3]) }
+    let!(:v2) { create(:volunteer, casa_org: casa_org, active: false) }
+    let!(:v3) { create(:volunteer, casa_org: casa_org) }
+
+    before { stub_const("Volunteer::COURT_REPORT_SUBMISSION_REMINDER", 7.days) }
+
+    it "sends one mailer" do
+      expect(VolunteerMailer).to receive(:court_report_reminder).with(v1, Date.current + 7.days)
+      expect(VolunteerMailer).to_not receive(:court_report_reminder).with(v2, anything)
+      expect(VolunteerMailer).to_not receive(:court_report_reminder).with(v3, anything)
+      described_class.email_court_report_reminder
+    end
+  end
+
   describe "#activate" do
     let(:volunteer) { create(:volunteer, :inactive) }
 
@@ -174,7 +201,8 @@ RSpec.describe Volunteer, type: :model do
     context "volunteers" do
       let!(:unassigned1) { create(:volunteer, display_name: "aaa", casa_org: casa_org) }
       let!(:unassigned2) { create(:volunteer, display_name: "bbb", casa_org: casa_org) }
-      let!(:unassigned2_different_org) { create(:volunteer, display_name: "ccc") }
+      let!(:different_org) { create(:casa_org) }
+      let!(:unassigned2_different_org) { create(:volunteer, display_name: "ccc", casa_org: different_org) }
       let!(:assigned1) { create(:volunteer, display_name: "ddd", casa_org: casa_org) }
       let!(:assignment1) { create(:supervisor_volunteer, volunteer: assigned1) }
       let!(:assigned2_different_org) { assignment1.volunteer }

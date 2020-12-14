@@ -6,7 +6,7 @@ RSpec.describe "volunteers/index", type: :system do
 
   context "when admin" do
     context "when no logo_url" do
-      it "can see volunteers and navigate to their cases" do
+      it "can see volunteers and navigate to their cases", js: true do
         volunteer = create(:volunteer, :with_assigned_supervisor, display_name: "User 1", email: "casa@example.com", casa_org: organization)
         volunteer.casa_cases << create(:casa_case, casa_org: organization)
         volunteer.casa_cases << create(:casa_case, casa_org: organization)
@@ -37,7 +37,7 @@ RSpec.describe "volunteers/index", type: :system do
       end
     end
 
-    it "can show/hide columns on volunteers table" do
+    it "can show/hide columns on volunteers table", js: true do
       sign_in admin
 
       visit volunteers_path
@@ -62,10 +62,10 @@ RSpec.describe "volunteers/index", type: :system do
       expect(page).not_to have_text("Last Contact Made")
     end
 
-    it "can filter volunteers" do
+    it "can filter volunteers", js: true do
       assigned_volunteers = create_list(:volunteer, 3, :with_assigned_supervisor, casa_org: organization)
       inactive_volunteers = create_list(:volunteer, 2, :inactive, casa_org: organization)
-      unassigned_volunteers = create_list(:volunteer, 1)
+      unassigned_volunteers = create_list(:volunteer, 1, casa_org: organization)
 
       sign_in admin
 
@@ -74,23 +74,29 @@ RSpec.describe "volunteers/index", type: :system do
 
       # by default, only active users are shown
       expect(page.all("table#volunteers tbody tr").count).to eq assigned_volunteers.count
+      assigned_volunteers.each do |assigned_volunteer|
+        expect(page).to have_text assigned_volunteer.display_name
+      end
 
       click_on "Supervisor"
       find(:css, "#unassigned-vol-filter").set(true)
-
+      unassigned_volunteers.each do |unassigned_volunteer|
+        expect(page).to have_text unassigned_volunteer.display_name
+      end
       expect(page.all("table#volunteers tbody tr").count).to eq unassigned_volunteers.count
 
       click_on "Status"
-      find(:css, 'input[data-value="Active"]').set(false)
-
+      find(:css, 'input[data-value="true"]').set(false)
       expect(page).to have_text("No matching records found")
 
-      find(:css, 'input[data-value="Inactive"]').set(true)
-
+      find(:css, 'input[data-value="false"]').set(true)
+      inactive_volunteers.each do |inactive_volunteer|
+        expect(page).to have_text inactive_volunteer.display_name
+      end
       expect(page.all("table#volunteers tbody tr").count).to eq inactive_volunteers.count
     end
 
-    it "can go to the volunteer edit page from the volunteer list" do
+    it "can go to the volunteer edit page from the volunteer list", js: true do
       create(:volunteer, :with_assigned_supervisor, casa_org: organization)
       sign_in admin
 
@@ -115,40 +121,52 @@ RSpec.describe "volunteers/index", type: :system do
     end
 
     describe "supervisor column of volunteers table" do
-      it "is blank when volunteer has no supervisor" do
+      it "is blank when volunteer has no supervisor", js: true do
         create(:volunteer, casa_org: organization)
         sign_in admin
 
         visit volunteers_path
         click_on "Supervisor"
         find(:css, "#unassigned-vol-filter").set(true)
-        supervisor_cell = page.find(".supervisor-column")
+        supervisor_cell = page.find("tbody .supervisor-column")
 
         expect(supervisor_cell.text).to eq ""
       end
 
-      it "displays supervisor's name when volunteer has supervisor" do
+      it "displays supervisor's name when volunteer has supervisor", js: true do
         name = "Superduper Visor"
         supervisor = create(:supervisor, display_name: name, casa_org: organization)
         create(:volunteer, supervisor: supervisor, casa_org: organization)
         sign_in admin
 
         visit volunteers_path
-        supervisor_cell = page.find(".supervisor-column")
+        supervisor_cell = page.find("tbody .supervisor-column")
 
         expect(supervisor_cell.text).to eq name
       end
 
-      it "is blank when volunteer's supervisor is inactive" do
+      it "is blank when volunteer's supervisor is inactive", js: true do
         create(:volunteer, :with_inactive_supervisor, casa_org: organization)
         sign_in admin
 
         visit volunteers_path
         click_on "Supervisor"
         find(:css, "#unassigned-vol-filter").set(true)
-        supervisor_cell = page.find(".supervisor-column")
+        supervisor_cell = page.find("tbody .supervisor-column")
 
         expect(supervisor_cell.text).to eq ""
+      end
+    end
+
+    context "when timed out" do
+      it "prompts login", js: true do
+        sign_in admin
+        visit volunteers_path
+        click_on "Supervisor"
+        allow_any_instance_of(User).to receive(:timedout?).and_return true
+        find(:css, "#unassigned-vol-filter").set(true)
+        expect(page).to have_text "You need to sign in before continuing."
+        expect(current_path).to eq new_user_session_path
       end
     end
   end
@@ -157,7 +175,7 @@ RSpec.describe "volunteers/index", type: :system do
     let(:supervisor) { create(:supervisor, casa_org: organization) }
     let(:input_field) { "div#volunteers_filter input" }
 
-    it "can filter volunteers" do
+    it "can filter volunteers", js: true do
       active_volunteers = create_list(:volunteer, 3, :with_assigned_supervisor, casa_org: organization)
       active_volunteers[2].supervisor = supervisor
 
@@ -173,17 +191,17 @@ RSpec.describe "volunteers/index", type: :system do
       expect(page.all("table#volunteers tbody tr").count).to eq 1
 
       click_on "Status"
-      find(:css, 'input[data-value="Active"]').set(false)
+      find(:css, 'input[data-value="true"]').set(false)
+      expect(page).to have_text("No matching records found")
 
-      # when all users are hidden, the tr count will be 1 for "no results" row
-      expect(page.all("table#volunteers tbody tr").count).to eq 1
-
-      find(:css, 'input[data-value="Inactive"]').set(true)
-
+      find(:css, 'input[data-value="false"]').set(true)
+      inactive_volunteers.each do |inactive_volunteer|
+        expect(page).to have_text inactive_volunteer.display_name
+      end
       expect(page.all("table#volunteers tbody tr").count).to eq inactive_volunteers.count
     end
 
-    it "can show/hide columns on volunteers table" do
+    it "can show/hide columns on volunteers table", js: true do
       sign_in supervisor
 
       visit volunteers_path
@@ -211,7 +229,7 @@ RSpec.describe "volunteers/index", type: :system do
     context "with volunteers" do
       let(:supervisor) { create(:supervisor, :with_volunteers) }
 
-      it "Search history is clean after navigating away from volunteers view" do
+      it "Search history is clean after navigating away from volunteers view", js: true do
         sign_in supervisor
         visit volunteers_path
 
@@ -221,6 +239,18 @@ RSpec.describe "volunteers/index", type: :system do
         visit volunteers_path
         input_search = page.find(input_field)
         expect(input_search.value).to eq("")
+      end
+    end
+
+    context "when timed out" do
+      it "prompts login", js: true do
+        sign_in supervisor
+        visit volunteers_path
+        click_on "Supervisor"
+        allow_any_instance_of(User).to receive(:timedout?).and_return true
+        find(:css, "#unassigned-vol-filter").set(true)
+        expect(page).to have_text "You need to sign in before continuing."
+        expect(current_path).to eq new_user_session_path
       end
     end
   end

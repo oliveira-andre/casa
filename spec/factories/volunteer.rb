@@ -1,9 +1,5 @@
 FactoryBot.define do
   factory :volunteer, class: "Volunteer", parent: :user do
-    casa_org do
-      @overrides[:casa_org] || @overrides[:supervisor].try(:casa_org) || create(:casa_org)
-    end
-
     trait :inactive do
       active { false }
     end
@@ -34,6 +30,12 @@ FactoryBot.define do
     end
 
     trait :with_inactive_supervisor do
+      after(:create) do |user, _|
+        create(:supervisor_volunteer, :inactive, volunteer: user)
+      end
+    end
+
+    trait :with_inactive_supervisor_assignment do
       after(:create) do |user, _|
         create(:supervisor_volunteer, :inactive, volunteer: user)
       end
